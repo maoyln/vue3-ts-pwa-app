@@ -1,17 +1,17 @@
 <script setup>
 import HelloWorld from './components/HelloWorld.vue'
-import PWAUpdatePrompt from './components/PWAUpdatePrompt.vue'
+// import PWAUpdatePrompt from './components/PWAUpdatePrompt.vue'
 import InstallPrompt from './components/InstallPrompt.vue'
 // import AfterInstallGuide from './components/AfterInstallGuide.vue'
 </script>
 
 <template>
   <div>
-    这是一个小的应用pwa
+    这是一个小的应用pwa更新提示示例
   </div>
   <HelloWorld msg="Vite + Vue" />
   
-  <PWAUpdatePrompt />
+  <!-- <PWAUpdatePrompt /> -->
   <InstallPrompt />
   <!-- <AfterInstallGuide /> -->
 </template>
