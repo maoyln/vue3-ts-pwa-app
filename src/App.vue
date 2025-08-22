@@ -2,6 +2,9 @@
 import { onMounted } from 'vue'
 import Navigation from './components/Navigation.vue'
 import PWAUpdatePrompt from './components/PWAUpdatePrompt.vue'
+import SmartInstallPrompt from './components/SmartInstallPrompt.vue'
+import OfflineManager from './components/OfflineManager.vue'
+import PerformanceMonitor from './components/PerformanceMonitor.vue'
 
 // 初始化应用
 onMounted(() => {
@@ -19,6 +22,11 @@ onMounted(() => {
   <div id="app" class="app">
     <!-- 导航栏 -->
     <Navigation />
+    
+    <!-- PWA 增强组件 -->
+    <SmartInstallPrompt />
+    <OfflineManager />
+    <PerformanceMonitor />
     
     <!-- 主要内容区域 -->
     <main class="main-content">
