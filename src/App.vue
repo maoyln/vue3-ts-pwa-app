@@ -1,32 +1,185 @@
-<script setup>
-import HelloWorld from './components/HelloWorld.vue'
-// import PWAUpdatePrompt from './components/PWAUpdatePrompt.vue'
-import InstallPrompt from './components/InstallPrompt.vue'
-// import AfterInstallGuide from './components/AfterInstallGuide.vue'
+<script setup lang="ts">
+import { onMounted } from 'vue'
+import Navigation from './components/Navigation.vue'
+import PWAUpdatePrompt from './components/PWAUpdatePrompt.vue'
+
+// 初始化应用
+onMounted(() => {
+  console.log('Vue3 PWA应用已启动')
+  
+  // 注册Service Worker更新监听
+  document.addEventListener('swUpdated', () => {
+    console.log('检测到Service Worker更新')
+    // 这里可以显示更新提示
+  })
+})
 </script>
 
 <template>
-  <div>
-    这是一个小的应用pwa更新提示示例
+  <div id="app" class="app">
+    <!-- 导航栏 -->
+    <Navigation />
+    
+    <!-- 主要内容区域 -->
+    <main class="main-content">
+      <router-view v-slot="{ Component, route }">
+        <transition name="page" mode="out-in">
+          <component :is="Component" :key="route.path" />
+        </transition>
+      </router-view>
+    </main>
+    
+    <!-- PWA更新提示 -->
+    <PWAUpdatePrompt />
+    
+    <!-- 页脚 -->
+    <footer class="app-footer">
+      <div class="footer-content">
+        <p>&copy; 2024 Vue3 PWA Demo. 使用 Vue 3 + TypeScript + Vite 构建</p>
+        <div class="footer-links">
+          <a href="https://vuejs.org" target="_blank" rel="noopener noreferrer">Vue 3</a>
+          <a href="https://vitejs.dev" target="_blank" rel="noopener noreferrer">Vite</a>
+          <a href="https://pwa.dev" target="_blank" rel="noopener noreferrer">PWA</a>
+        </div>
+      </div>
+    </footer>
   </div>
-  <HelloWorld msg="Vite + Vue" />
-  
-  <!-- <PWAUpdatePrompt /> -->
-  <InstallPrompt />
-  <!-- <AfterInstallGuide /> -->
 </template>
 
 <style scoped>
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
 }
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
+
+.main-content {
+  flex: 1;
+  padding-top: 20px;
+  min-height: calc(100vh - 120px);
 }
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
+
+/* 页面切换动画 */
+.page-enter-active,
+.page-leave-active {
+  transition: all 0.3s ease;
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.page-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+/* 页脚样式 */
+.app-footer {
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  padding: 24px 0;
+  margin-top: auto;
+}
+
+.footer-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.footer-content p {
+  color: #6b7280;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.footer-links {
+  display: flex;
+  gap: 20px;
+}
+
+.footer-links a {
+  color: #3b82f6;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 0.3s ease;
+}
+
+.footer-links a:hover {
+  color: #1d4ed8;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .main-content {
+    padding-top: 80px; /* 为移动端菜单按钮留出空间 */
+  }
+  
+  .footer-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+  }
+  
+  .footer-links {
+    gap: 16px;
+  }
+}
+
+/* 深色模式支持 */
+@media (prefers-color-scheme: dark) {
+  .app {
+    background: #111827;
+  }
+  
+  .app-footer {
+    background: #1f2937;
+    border-top-color: #374151;
+  }
+  
+  .footer-content p {
+    color: #d1d5db;
+  }
+  
+  .footer-links a {
+    color: #60a5fa;
+  }
+  
+  .footer-links a:hover {
+    color: #93c5fd;
+  }
+}
+
+/* 滚动行为优化 */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* 无障碍支持 */
+.footer-links a:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 打印样式 */
+@media print {
+  .app-footer {
+    display: none;
+  }
+  
+  .main-content {
+    padding-top: 0;
+  }
 }
 </style>

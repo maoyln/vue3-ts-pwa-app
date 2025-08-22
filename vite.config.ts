@@ -5,10 +5,10 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   plugins: [
     vue(),
-    VitePWA({
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.js',
+          VitePWA({
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
