@@ -242,6 +242,14 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
       handleOpenApp(event);
       break;
       
+    case 'BACKGROUND_SYNC':
+      handleBackgroundSync(event, data);
+      break;
+      
+    case 'GET_PRECACHE_STATUS':
+      handleGetPrecacheStatus(event);
+      break;
+      
     default:
       console.warn('未知消息类型:', data.type);
   }
@@ -999,6 +1007,73 @@ const handleOpenApp = async (_event: ExtendableMessageEvent): Promise<void> => {
 };
 
 /**
+ * 处理获取预缓存状态请求
+ */
+const handleGetPrecacheStatus = async (event: ExtendableMessageEvent): Promise<void> => {
+  try {
+    console.log('📊 获取预缓存状态');
+    
+    const cache = await caches.open(CACHE_NAMES.API);
+    const cachedRequests = await cache.keys();
+    
+    // 检查重要URL的缓存状态
+    const importantUrls = [
+      'https://jsonplaceholder.typicode.com/users',
+      'https://jsonplaceholder.typicode.com/posts',
+      'https://jsonplaceholder.typicode.com/comments',
+      'https://jsonplaceholder.typicode.com/albums'
+    ];
+    
+    const cacheStatus = await Promise.all(
+      importantUrls.map(async (url) => {
+        const response = await cache.match(url);
+        return {
+          url,
+          cached: !!response,
+          timestamp: response ? new Date(response.headers.get('date') || '').getTime() : null
+        };
+      })
+    );
+    
+    const status = {
+      totalUrls: importantUrls.length,
+      cachedUrls: cacheStatus.filter(s => s.cached).length,
+      cacheDetails: cacheStatus,
+      totalCachedRequests: cachedRequests.length,
+      lastUpdateTime: Date.now()
+    };
+    
+    // 发送状态给客户端
+    if (event.ports?.[0]) {
+      event.ports[0].postMessage({
+        type: 'PRECACHE_STATUS_RESPONSE',
+        payload: status
+      });
+    } else {
+      // 如果没有MessagePort，广播给所有客户端
+      const clients = await self.clients.matchAll();
+      clients.forEach(client => {
+        client.postMessage({
+          type: 'PRECACHE_STATUS_RESPONSE',
+          payload: status
+        });
+      });
+    }
+    
+  } catch (error) {
+    console.error('获取预缓存状态失败:', error);
+    
+    // 发送错误响应
+    if (event.ports?.[0]) {
+      event.ports[0].postMessage({
+        type: 'PRECACHE_STATUS_ERROR',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+};
+
+/**
  * 同步用户数据
  */
 const syncUserData = async (): Promise<void> => {
@@ -1117,6 +1192,171 @@ const syncAlbumsData = async (): Promise<void> => {
     console.error('❌ 相册数据同步失败:', error);
   }
 };
+
+/**
+ * 处理后台同步请求
+ */
+const handleBackgroundSync = async (_event: ExtendableMessageEvent, data: any): Promise<void> => {
+  try {
+    console.log('🔄 开始后台同步:', data.payload);
+    
+    // 这里可以实现更复杂的后台同步逻辑
+    // 例如：检查离线队列、批量同步等
+    
+    const { syncType, resource } = data.payload || {};
+    
+    switch (syncType) {
+      case 'PERIODIC':
+        await performPeriodicSync();
+        break;
+        
+      case 'RESOURCE_SYNC':
+        await performResourceSync(resource);
+        break;
+        
+      case 'FULL_SYNC':
+        await performFullSync();
+        break;
+        
+      default:
+        console.log('执行默认后台同步');
+    }
+    
+    // 通知客户端同步完成
+    const clients = await self.clients.matchAll();
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'BACKGROUND_SYNC_COMPLETED',
+        payload: {
+          syncType,
+          resource,
+          timestamp: Date.now()
+        }
+      });
+    });
+    
+  } catch (error: any) {
+    console.error('后台同步失败:', error);
+    
+    // 通知客户端同步失败
+    const clients = await self.clients.matchAll();
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'BACKGROUND_SYNC_FAILED',
+        payload: {
+          error: error.message,
+          timestamp: Date.now()
+        }
+      });
+    });
+  }
+};
+
+/**
+ * 执行周期性同步
+ */
+const performPeriodicSync = async (): Promise<void> => {
+  console.log('📅 执行周期性同步');
+  
+  try {
+    // 清理过期缓存
+    await cleanExpiredApiCache();
+    
+    // 预加载重要数据 - 扩展为所有模块
+    const importantUrls = [
+      'https://jsonplaceholder.typicode.com/users',
+      'https://jsonplaceholder.typicode.com/posts',
+      'https://jsonplaceholder.typicode.com/comments',
+      'https://jsonplaceholder.typicode.com/albums'
+    ];
+    
+    for (const url of importantUrls) {
+      try {
+        const response = await fetch(url);
+        if (response.ok) {
+          const cache = await caches.open(CACHE_NAMES.API);
+          await cache.put(url, response.clone());
+          console.log('📦 预加载数据:', url);
+        }
+      } catch (error) {
+        console.warn('预加载失败:', url, error);
+      }
+    }
+    
+  } catch (error) {
+    console.error('周期性同步失败:', error);
+  }
+};
+
+/**
+ * 执行资源同步
+ */
+const performResourceSync = async (resource: string): Promise<void> => {
+  console.log(`📋 执行 ${resource} 资源同步`);
+  
+  try {
+    // 根据资源类型执行不同的同步策略
+    switch (resource) {
+      case 'users':
+        await syncUserData();
+        break;
+        
+      case 'posts':
+        await syncPostsData();
+        break;
+        
+      case 'comments':
+        await syncCommentsData();
+        break;
+        
+      case 'albums':
+        await syncAlbumsData();
+        break;
+        
+      default:
+        console.log(`未知资源类型: ${resource}`);
+    }
+    
+  } catch (error) {
+    console.error(`${resource} 资源同步失败:`, error);
+  }
+};
+
+/**
+ * 执行完整同步
+ */
+const performFullSync = async (): Promise<void> => {
+  console.log('🔄 执行完整同步');
+  
+  try {
+    // 执行所有资源的同步
+    await Promise.all([
+      syncUserData(),
+      syncPostsData(),
+      syncCommentsData(),
+      syncAlbumsData()
+    ]);
+    
+    console.log('✅ 完整同步完成');
+    
+  } catch (error) {
+    console.error('完整同步失败:', error);
+  }
+};
+
+// 注册后台同步事件（如果浏览器支持）
+if ('sync' in self.registration) {
+  self.addEventListener('sync', (event: any) => {
+    console.log('🔄 后台同步事件触发:', event.tag);
+    
+    if (event.tag === 'background-sync') {
+      event.waitUntil(performPeriodicSync());
+    } else if (event.tag.startsWith('resource-sync-')) {
+      const resource = event.tag.replace('resource-sync-', '');
+      event.waitUntil(performResourceSync(resource));
+    }
+  });
+}
 
 // 定期清理过期缓存（每小时执行一次）
 setInterval(() => {

@@ -125,7 +125,11 @@
               v-for="comment in paginatedComments"
               :key="comment.id"
               class="table-row"
-              :class="{ 'row-highlight': comment.id === highlightCommentId }"
+              :class="{ 
+                'row-highlight': comment.id === highlightCommentId,
+                'row-offline': comment._isOffline && !comment._isDeleted,
+                'row-deleted': comment._isDeleted
+              }"
             >
               <td class="id-cell">{{ comment.id }}</td>
               <td class="post-cell">
@@ -138,8 +142,14 @@
               </td>
               <td class="name-cell">
                 <div class="commenter-info">
-                  <div class="commenter-avatar">{{ getInitials(comment.name) }}</div>
-                  <span class="commenter-name">{{ comment.name }}</span>
+                  <div class="commenter-avatar" :class="{ 'offline': comment._isOffline, 'deleted': comment._isDeleted }">
+                    {{ getInitials(comment.name) }}
+                  </div>
+                  <span class="commenter-name">
+                    {{ comment.name }}
+                    <span v-if="comment._isOffline && !comment._isDeleted" class="offline-badge" title="离线操作，待同步">📝</span>
+                    <span v-if="comment._isDeleted" class="deleted-badge" title="已标记删除，待同步">🗑️</span>
+                  </span>
                 </div>
               </td>
               <td class="email-cell">
@@ -402,6 +412,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { refreshApiCache } from '../registerServiceWorker'
+import { addOfflineOperation } from '../utils/offlineSync'
 
 // 评论数据接口定义
 interface Comment {
@@ -411,6 +422,9 @@ interface Comment {
   email: string
   body: string
   rating?: number
+  // 离线操作标识
+  _isOffline?: boolean
+  _isDeleted?: boolean
 }
 
 // 文章数据接口定义
@@ -685,6 +699,8 @@ const deleteComment = async (comment: Comment) => {
   }
   
   try {
+    if (!navigator.onLine) throw new Error('网络不可用')
+    
     await deleteCommentApi(comment.id)
     
     // 从本地数组中移除
@@ -700,9 +716,31 @@ const deleteComment = async (comment: Comment) => {
     console.log('✅ 评论删除成功:', comment.id)
     
   } catch (err: any) {
-    error.value = err.message || '删除评论失败'
-    alert('删除失败: ' + error.value)
-    console.error('❌ 删除评论失败:', err)
+    if (err.message.includes('网络不可用') || err.message.includes('fetch') || err.message.includes('network')) {
+      console.log('📝 网络不可用，添加删除操作到离线同步队列')
+      
+      const index = comments.value.findIndex(c => c.id === comment.id)
+      if (index !== -1) {
+        comments.value[index] = {
+          ...comments.value[index],
+          _isDeleted: true,
+          _isOffline: true
+        } as Comment & { _isDeleted?: boolean, _isOffline?: boolean }
+      }
+      
+      // 高亮效果
+      highlightCommentId.value = comment.id
+      setTimeout(() => {
+        highlightCommentId.value = null
+      }, 1000)
+      
+      await addOfflineOperation('DELETE', 'comments', { name: comment.name, body: comment.body }, comment.id)
+      alert('网络不可用，删除操作已保存到同步队列，网络恢复后将自动同步')
+    } else {
+      error.value = err.message || '删除评论失败'
+      alert('删除失败: ' + error.value)
+      console.error('❌ 删除评论失败:', err)
+    }
   }
 }
 
@@ -720,47 +758,106 @@ const saveComment = async () => {
     
     if (showAddModal.value) {
       // 添加评论
-      const newComment = await createComment(commentData)
-      
-      // 添加到本地数组
-      const maxId = Math.max(...comments.value.map(c => c.id), 0)
-      const commentToAdd = {
-        ...commentData,
-        id: maxId + 1
-      } as Comment
-      
-      comments.value.unshift(commentToAdd)
-      
-      // 高亮新添加的评论
-      highlightCommentId.value = commentToAdd.id
-      setTimeout(() => {
-        highlightCommentId.value = null
-      }, 2000)
-      
-      alert('评论添加成功！')
-      console.log('✅ 评论添加成功:', newComment)
-      
-    } else {
-      // 更新评论
-      await updateComment(formData.value.id, commentData)
-      
-      // 更新本地数组
-      const index = comments.value.findIndex(c => c.id === formData.value.id)
-      if (index !== -1) {
-        comments.value[index] = {
-          ...comments.value[index],
-          ...commentData
+      try {
+        if (!navigator.onLine) throw new Error('网络不可用')
+        
+        const newComment = await createComment(commentData)
+        
+        // 添加到本地数组
+        const maxId = Math.max(...comments.value.map(c => c.id), 0)
+        const commentToAdd = {
+          ...commentData,
+          id: maxId + 1
+        } as Comment
+        
+        comments.value.unshift(commentToAdd)
+        
+        // 高亮新添加的评论
+        highlightCommentId.value = commentToAdd.id
+        setTimeout(() => {
+          highlightCommentId.value = null
+        }, 2000)
+        
+        alert('评论添加成功！')
+        console.log('✅ 评论添加成功:', newComment)
+        
+      } catch (err: any) {
+        if (err.message.includes('网络不可用') || err.message.includes('fetch') || err.message.includes('network')) {
+          console.log('📝 网络不可用，添加到离线同步队列')
+          
+          // 生成临时ID
+          const maxId = Math.max(...comments.value.map(c => c.id), 0)
+          const tempComment = {
+            ...commentData,
+            id: maxId + 1,
+            _isOffline: true
+          } as Comment & { _isOffline?: boolean }
+          
+          comments.value.unshift(tempComment)
+          
+          // 高亮新添加的评论
+          highlightCommentId.value = tempComment.id
+          setTimeout(() => {
+            highlightCommentId.value = null
+          }, 2000)
+          
+          await addOfflineOperation('CREATE', 'comments', commentData)
+          alert('网络不可用，评论已添加到同步队列，网络恢复后将自动同步')
+        } else {
+          throw err
         }
       }
       
-      // 高亮更新的评论
-      highlightCommentId.value = formData.value.id
-      setTimeout(() => {
-        highlightCommentId.value = null
-      }, 2000)
-      
-      alert('评论更新成功！')
-      console.log('✅ 评论更新成功:', formData.value.id)
+    } else {
+      // 更新评论
+      try {
+        if (!navigator.onLine) throw new Error('网络不可用')
+        
+        await updateComment(formData.value.id, commentData)
+        
+        // 更新本地数组
+        const index = comments.value.findIndex(c => c.id === formData.value.id)
+        if (index !== -1) {
+          comments.value[index] = {
+            ...comments.value[index],
+            ...commentData
+          }
+        }
+        
+        // 高亮更新的评论
+        highlightCommentId.value = formData.value.id
+        setTimeout(() => {
+          highlightCommentId.value = null
+        }, 2000)
+        
+        alert('评论更新成功！')
+        console.log('✅ 评论更新成功:', formData.value.id)
+        
+      } catch (err: any) {
+        if (err.message.includes('网络不可用') || err.message.includes('fetch') || err.message.includes('network')) {
+          console.log('📝 网络不可用，添加到离线同步队列')
+          
+          const index = comments.value.findIndex(c => c.id === formData.value.id)
+          if (index !== -1) {
+            comments.value[index] = {
+              ...comments.value[index],
+              ...commentData,
+              _isOffline: true
+            } as Comment & { _isOffline?: boolean }
+          }
+          
+          // 高亮更新的评论
+          highlightCommentId.value = formData.value.id
+          setTimeout(() => {
+            highlightCommentId.value = null
+          }, 2000)
+          
+          await addOfflineOperation('UPDATE', 'comments', commentData, formData.value.id)
+          alert('网络不可用，评论修改已保存到同步队列，网络恢复后将自动同步')
+        } else {
+          throw err
+        }
+      }
     }
     
     closeModals()
@@ -1238,6 +1335,41 @@ onUnmounted(() => {
 .table-row.row-highlight {
   background: #e9d5ff;
   animation: highlight 2s ease-out;
+}
+
+.table-row.row-offline {
+  border-left: 4px solid #f59e0b !important;
+  background-color: rgba(245, 158, 11, 0.05);
+}
+
+.table-row.row-deleted {
+  border-left: 4px solid #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.05);
+  opacity: 0.7;
+}
+
+.commenter-avatar.offline {
+  background-color: #f59e0b;
+  border: 2px solid #d97706;
+}
+
+.commenter-avatar.deleted {
+  background-color: #ef4444;
+  border: 2px solid #dc2626;
+  opacity: 0.6;
+}
+
+.offline-badge, .deleted-badge {
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.offline-badge {
+  color: #f59e0b;
+}
+
+.deleted-badge {
+  color: #ef4444;
 }
 
 @keyframes highlight {

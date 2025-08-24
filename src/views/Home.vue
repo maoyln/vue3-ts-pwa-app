@@ -49,6 +49,12 @@
         <p>相册照片管理系统</p>
       </div>
       
+      <div class="feature-card" @click="$router.push('/documents')">
+        <div class="card-icon">📄</div>
+        <h3>文档管理</h3>
+        <p>在线文档编辑器，支持Markdown、HTML和纯文本，离线编辑自动同步</p>
+      </div>
+      
       <div class="feature-card" @click="$router.push('/about')">
         <div class="card-icon">ℹ️</div>
         <h3>关于应用</h3>

@@ -5,6 +5,7 @@ import PWAUpdatePrompt from './components/PWAUpdatePrompt.vue'
 import SmartInstallPrompt from './components/SmartInstallPrompt.vue'
 import OfflineManager from './components/OfflineManager.vue'
 import PerformanceMonitor from './components/PerformanceMonitor.vue'
+import OfflineSyncStatus from './components/OfflineSyncStatus.vue'
 
 // 初始化应用
 onMounted(() => {
@@ -27,6 +28,7 @@ onMounted(() => {
     <SmartInstallPrompt />
     <OfflineManager />
     <PerformanceMonitor />
+    <OfflineSyncStatus />
     
     <!-- 主要内容区域 -->
     <main class="main-content">

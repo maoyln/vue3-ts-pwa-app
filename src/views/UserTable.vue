@@ -124,8 +124,14 @@
               <td class="id-cell">{{ user.id }}</td>
               <td class="name-cell">
                 <div class="user-info">
-                  <div class="user-avatar">{{ getInitials(user.name) }}</div>
-                  <span class="user-name">{{ user.name }}</span>
+                  <div class="user-avatar" :class="{ 'offline': user._isOffline, 'deleted': user._isDeleted }">
+                    {{ getInitials(user.name) }}
+                  </div>
+                  <span class="user-name">
+                    {{ user.name }}
+                    <span v-if="user._isOffline && !user._isDeleted" class="offline-badge" title="离线操作，待同步">📝</span>
+                    <span v-if="user._isDeleted" class="deleted-badge" title="已标记删除，待同步">🗑️</span>
+                  </span>
                 </div>
               </td>
               <td class="username-cell">{{ user.username }}</td>
@@ -394,7 +400,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { addOfflineOperation } from '../utils/offlineSync'
 import { refreshApiCache } from '../registerServiceWorker'
+import { dataPrecacheService } from '../utils/dataPrecacheService'
 
 // 用户数据接口定义
 interface User {
@@ -419,6 +427,9 @@ interface User {
     catchPhrase: string
     bs: string
   }
+  // 离线操作标识
+  _isOffline?: boolean
+  _isDeleted?: boolean
 }
 
 // 响应式数据
@@ -501,11 +512,28 @@ const totalPages = computed(() => {
 })
 
 // API调用函数
-const fetchUsers = async (_forceRefresh = false) => {
+const fetchUsers = async (forceRefresh = false) => {
   loading.value = true
   error.value = ''
   
   try {
+    let data: User[] | null = null
+    
+    // 如果不是强制刷新，先尝试从预缓存获取数据
+    if (!forceRefresh) {
+      data = await dataPrecacheService.getCachedData<User[]>('users')
+      if (data) {
+        users.value = data
+        cacheStatus.value = 'fresh'
+        dataSource.value = '预缓存'
+        lastUpdateTime.value = new Date().toLocaleString('zh-CN')
+        console.log('✅ 从预缓存加载用户数据:', data.length, '条记录')
+        loading.value = false
+        return
+      }
+    }
+    
+    // 如果预缓存没有数据或强制刷新，从网络获取
     const url = `${API_BASE_URL}/users`
     const response = await fetch(url)
     
@@ -513,8 +541,8 @@ const fetchUsers = async (_forceRefresh = false) => {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
     
-    const data = await response.json()
-    users.value = data
+    data = await response.json()
+    users.value = data!
     
     // 检查缓存状态
     const cacheStatusHeader = response.headers.get('sw-cache-status')
@@ -528,18 +556,29 @@ const fetchUsers = async (_forceRefresh = false) => {
     
     lastUpdateTime.value = new Date().toLocaleString('zh-CN')
     
-    console.log('✅ 用户数据加载成功:', data.length, '条记录')
+    console.log('✅ 用户数据加载成功:', data!.length, '条记录')
     
   } catch (err: any) {
     console.error('❌ 获取用户数据失败:', err)
     
-    // 检查是否是网络错误
-    if (!navigator.onLine) {
-      error.value = '网络连接断开，请检查网络后重试'
-    } else if (err.message.includes('503')) {
-      error.value = '服务暂时不可用，已显示缓存数据'
+    // 网络失败时，尝试从预缓存获取数据
+    const cachedData = await dataPrecacheService.getCachedData<User[]>('users')
+    if (cachedData) {
+      users.value = cachedData
+      cacheStatus.value = 'stale'
+      dataSource.value = '离线缓存'
+      lastUpdateTime.value = new Date().toLocaleString('zh-CN')
+      error.value = '网络连接失败，显示缓存数据'
+      console.log('📦 从预缓存加载用户数据（网络失败）:', cachedData.length, '条记录')
     } else {
-      error.value = err.message || '获取用户数据失败'
+      // 检查是否是网络错误
+      if (!navigator.onLine) {
+        error.value = '网络连接断开，请检查网络后重试'
+      } else if (err.message.includes('503')) {
+        error.value = '服务暂时不可用，已显示缓存数据'
+      } else {
+        error.value = err.message || '获取用户数据失败'
+      }
     }
   } finally {
     loading.value = false
@@ -655,6 +694,10 @@ const deleteUser = async (user: User) => {
   }
   
   try {
+    if (!navigator.onLine) {
+      throw new Error('网络不可用')
+    }
+    
     await deleteUserApi(user.id)
     
     // 从本地数组中移除
@@ -670,9 +713,29 @@ const deleteUser = async (user: User) => {
     console.log('✅ 用户删除成功:', user.name)
     
   } catch (err: any) {
-    error.value = err.message || '删除用户失败'
-    alert('删除失败: ' + error.value)
-    console.error('❌ 删除用户失败:', err)
+    // 离线或网络错误时，添加到离线队列
+    if (err.message.includes('网络不可用') || err.message.includes('fetch') || err.message.includes('network')) {
+      console.log('📝 网络不可用，添加删除操作到离线同步队列')
+      
+      // 先在本地标记为已删除（但不真正移除，以防同步失败）
+      const index = users.value.findIndex(u => u.id === user.id)
+      if (index !== -1) {
+        users.value[index] = {
+          ...users.value[index],
+          _isDeleted: true,
+          _isOffline: true
+        } as User & { _isDeleted?: boolean, _isOffline?: boolean }
+      }
+      
+      addOfflineOperation('DELETE', 'users', { name: user.name }, user.id)
+      
+      alert('网络不可用，删除操作已保存到同步队列，网络恢复后将自动同步')
+      console.log('📝 用户删除已添加到离线队列:', user.name)
+    } else {
+      error.value = err.message || '删除用户失败'
+      alert('删除失败: ' + error.value)
+      console.error('❌ 删除用户失败:', err)
+    }
   }
 }
 
@@ -695,49 +758,111 @@ const saveUser = async () => {
     
     if (showAddModal.value) {
       // 添加用户
-      const newUser = await createUser(userData)
-      
-      // 添加到本地数组（JSONPlaceholder返回的ID可能不准确，使用最大ID+1）
-      const maxId = Math.max(...users.value.map(u => u.id), 0)
-      const userToAdd = {
-        ...userData,
-        id: maxId + 1,
-        company: userData.company
-      } as User
-      
-      users.value.unshift(userToAdd)
-      
-      // 高亮新添加的用户
-      highlightUserId.value = userToAdd.id
-      setTimeout(() => {
-        highlightUserId.value = null
-      }, 2000)
-      
-      alert('用户添加成功！')
-      console.log('✅ 用户添加成功:', newUser)
+      try {
+        if (!navigator.onLine) {
+          throw new Error('网络不可用')
+        }
+        
+        const newUser = await createUser(userData)
+        
+        // 添加到本地数组（JSONPlaceholder返回的ID可能不准确，使用最大ID+1）
+        const maxId = Math.max(...users.value.map(u => u.id), 0)
+        const userToAdd = {
+          ...userData,
+          id: maxId + 1,
+          company: userData.company
+        } as User
+        
+        users.value.unshift(userToAdd)
+        
+        // 高亮新添加的用户
+        highlightUserId.value = userToAdd.id
+        setTimeout(() => {
+          highlightUserId.value = null
+        }, 2000)
+        
+        alert('用户添加成功！')
+        console.log('✅ 用户添加成功:', newUser)
+        
+      } catch (err: any) {
+        // 离线或网络错误时，添加到离线队列
+        console.log('📝 网络不可用，添加到离线同步队列')
+        
+        const maxId = Math.max(...users.value.map(u => u.id), 0)
+        const tempUser = {
+          ...userData,
+          id: maxId + 1,
+          company: userData.company,
+          _isOffline: true // 标记为离线创建
+        } as User & { _isOffline?: boolean }
+        
+        users.value.unshift(tempUser)
+        addOfflineOperation('CREATE', 'users', userData)
+        
+        // 高亮新添加的用户
+        highlightUserId.value = tempUser.id
+        setTimeout(() => {
+          highlightUserId.value = null
+        }, 2000)
+        
+        alert('网络不可用，用户已添加到同步队列，网络恢复后将自动同步')
+        console.log('📝 用户已添加到离线队列:', tempUser)
+      }
       
     } else {
       // 更新用户
-      await updateUser(formData.value.id, userData)
-      
-      // 更新本地数组
-      const index = users.value.findIndex(u => u.id === formData.value.id)
-      if (index !== -1) {
-        users.value[index] = {
-          ...users.value[index],
-          ...userData,
-          company: userData.company
-        } as User
+      try {
+        if (!navigator.onLine) {
+          throw new Error('网络不可用')
+        }
+        
+        await updateUser(formData.value.id, userData)
+        
+        // 更新本地数组
+        const index = users.value.findIndex(u => u.id === formData.value.id)
+        if (index !== -1) {
+          users.value[index] = {
+            ...users.value[index],
+            ...userData,
+            company: userData.company
+          } as User
+        }
+        
+        // 高亮更新的用户
+        highlightUserId.value = formData.value.id
+        setTimeout(() => {
+          highlightUserId.value = null
+        }, 2000)
+        
+        alert('用户更新成功！')
+        console.log('✅ 用户更新成功:', formData.value.name)
+        
+      } catch (err: any) {
+        // 离线或网络错误时，添加到离线队列
+        console.log('📝 网络不可用，添加到离线同步队列')
+        
+        // 先在本地更新
+        const index = users.value.findIndex(u => u.id === formData.value.id)
+        if (index !== -1) {
+          users.value[index] = {
+            ...users.value[index],
+            ...userData,
+            company: userData.company,
+            _isOffline: true // 标记为离线修改
+          } as User & { _isOffline?: boolean }
+        }
+        
+        addOfflineOperation('UPDATE', 'users', userData, formData.value.id)
+        
+        // 高亮更新的用户
+        highlightUserId.value = formData.value.id
+        setTimeout(() => {
+          highlightUserId.value = null
+        }, 2000)
+        
+        alert('网络不可用，用户修改已保存到同步队列，网络恢复后将自动同步')
+        console.log('📝 用户修改已添加到离线队列:', userData)
       }
-      
-      // 高亮更新的用户
-      highlightUserId.value = formData.value.id
-      setTimeout(() => {
-        highlightUserId.value = null
-      }, 2000)
-      
-      alert('用户更新成功！')
-      console.log('✅ 用户更新成功:', formData.value.name)
     }
     
     closeModals()
@@ -1206,6 +1331,32 @@ onUnmounted(() => {
   justify-content: center;
   font-size: 12px;
   font-weight: 600;
+  position: relative;
+}
+
+.user-avatar.offline {
+  background: #f59e0b;
+  border: 2px solid #fbbf24;
+}
+
+.user-avatar.deleted {
+  background: #ef4444;
+  border: 2px solid #f87171;
+  opacity: 0.7;
+}
+
+.offline-badge, .deleted-badge {
+  font-size: 12px;
+  margin-left: 4px;
+  opacity: 0.8;
+}
+
+.offline-badge {
+  color: #f59e0b;
+}
+
+.deleted-badge {
+  color: #ef4444;
 }
 
 .user-name {

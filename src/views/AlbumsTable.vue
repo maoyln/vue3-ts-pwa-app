@@ -201,7 +201,11 @@
           v-for="album in paginatedAlbums"
           :key="album.id"
           class="album-card"
-          :class="{ 'card-highlight': album.id === highlightAlbumId }"
+          :class="{ 
+            'card-highlight': album.id === highlightAlbumId,
+            'card-offline': album._isOffline && !album._isDeleted,
+            'card-deleted': album._isDeleted
+          }"
         >
           <div class="card-header">
             <div class="album-cover">
@@ -226,6 +230,8 @@
           <div class="card-body">
             <h3 class="album-title" :title="album.title">
               {{ truncateText(album.title, 30) }}
+              <span v-if="album._isOffline && !album._isDeleted" class="offline-badge" title="离线操作，待同步">📝</span>
+              <span v-if="album._isDeleted" class="deleted-badge" title="已标记删除，待同步">🗑️</span>
             </h3>
             <div class="album-meta">
               <div class="creator-info">
@@ -431,6 +437,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { refreshApiCache } from '../registerServiceWorker'
+import { addOfflineOperation } from '../utils/offlineSync'
 
 // 相册数据接口定义
 interface Album {
@@ -440,6 +447,9 @@ interface Album {
   photoCount?: number
   description?: string
   createdAt?: Date
+  // 离线操作标识
+  _isOffline?: boolean
+  _isDeleted?: boolean
 }
 
 // 用户数据接口定义
@@ -719,6 +729,8 @@ const deleteAlbum = async (album: Album) => {
   }
   
   try {
+    if (!navigator.onLine) throw new Error('网络不可用')
+    
     await deleteAlbumApi(album.id)
     
     // 从本地数组中移除
@@ -734,9 +746,31 @@ const deleteAlbum = async (album: Album) => {
     console.log('✅ 相册删除成功:', album.title)
     
   } catch (err: any) {
-    error.value = err.message || '删除相册失败'
-    alert('删除失败: ' + error.value)
-    console.error('❌ 删除相册失败:', err)
+    if (err.message.includes('网络不可用') || err.message.includes('fetch') || err.message.includes('network')) {
+      console.log('📝 网络不可用，添加删除操作到离线同步队列')
+      
+      const index = albums.value.findIndex(a => a.id === album.id)
+      if (index !== -1) {
+        albums.value[index] = {
+          ...albums.value[index],
+          _isDeleted: true,
+          _isOffline: true
+        } as Album & { _isDeleted?: boolean, _isOffline?: boolean }
+      }
+      
+      // 高亮效果
+      highlightAlbumId.value = album.id
+      setTimeout(() => {
+        highlightAlbumId.value = null
+      }, 1000)
+      
+      await addOfflineOperation('DELETE', 'albums', { title: album.title }, album.id)
+      alert('网络不可用，删除操作已保存到同步队列，网络恢复后将自动同步')
+    } else {
+      error.value = err.message || '删除相册失败'
+      alert('删除失败: ' + error.value)
+      console.error('❌ 删除相册失败:', err)
+    }
   }
 }
 
@@ -752,49 +786,110 @@ const saveAlbum = async () => {
     
     if (showAddModal.value) {
       // 添加相册
-      const newAlbum = await createAlbum(albumData)
-      
-      // 添加到本地数组
-      const maxId = Math.max(...albums.value.map(a => a.id), 0)
-      const albumToAdd = {
-        ...albumData,
-        id: maxId + 1,
-        photoCount: 0,
-        createdAt: new Date()
-      } as Album
-      
-      albums.value.unshift(albumToAdd)
-      
-      // 高亮新添加的相册
-      highlightAlbumId.value = albumToAdd.id
-      setTimeout(() => {
-        highlightAlbumId.value = null
-      }, 2000)
-      
-      alert('相册创建成功！')
-      console.log('✅ 相册创建成功:', newAlbum)
-      
-    } else {
-      // 更新相册
-      await updateAlbum(formData.value.id, albumData)
-      
-      // 更新本地数组
-      const index = albums.value.findIndex(a => a.id === formData.value.id)
-      if (index !== -1) {
-        albums.value[index] = {
-          ...albums.value[index],
-          ...albumData
+      try {
+        if (!navigator.onLine) throw new Error('网络不可用')
+        
+        const newAlbum = await createAlbum(albumData)
+        
+        // 添加到本地数组
+        const maxId = Math.max(...albums.value.map(a => a.id), 0)
+        const albumToAdd = {
+          ...albumData,
+          id: maxId + 1,
+          photoCount: 0,
+          createdAt: new Date()
+        } as Album
+        
+        albums.value.unshift(albumToAdd)
+        
+        // 高亮新添加的相册
+        highlightAlbumId.value = albumToAdd.id
+        setTimeout(() => {
+          highlightAlbumId.value = null
+        }, 2000)
+        
+        alert('相册创建成功！')
+        console.log('✅ 相册创建成功:', newAlbum)
+        
+      } catch (err: any) {
+        if (err.message.includes('网络不可用') || err.message.includes('fetch') || err.message.includes('network')) {
+          console.log('📝 网络不可用，添加到离线同步队列')
+          
+          // 生成临时ID
+          const maxId = Math.max(...albums.value.map(a => a.id), 0)
+          const tempAlbum = {
+            ...albumData,
+            id: maxId + 1,
+            photoCount: 0,
+            createdAt: new Date(),
+            _isOffline: true
+          } as Album & { _isOffline?: boolean }
+          
+          albums.value.unshift(tempAlbum)
+          
+          // 高亮新添加的相册
+          highlightAlbumId.value = tempAlbum.id
+          setTimeout(() => {
+            highlightAlbumId.value = null
+          }, 2000)
+          
+          await addOfflineOperation('CREATE', 'albums', albumData)
+          alert('网络不可用，相册已添加到同步队列，网络恢复后将自动同步')
+        } else {
+          throw err
         }
       }
       
-      // 高亮更新的相册
-      highlightAlbumId.value = formData.value.id
-      setTimeout(() => {
-        highlightAlbumId.value = null
-      }, 2000)
-      
-      alert('相册更新成功！')
-      console.log('✅ 相册更新成功:', formData.value.title)
+    } else {
+      // 更新相册
+      try {
+        if (!navigator.onLine) throw new Error('网络不可用')
+        
+        await updateAlbum(formData.value.id, albumData)
+        
+        // 更新本地数组
+        const index = albums.value.findIndex(a => a.id === formData.value.id)
+        if (index !== -1) {
+          albums.value[index] = {
+            ...albums.value[index],
+            ...albumData
+          }
+        }
+        
+        // 高亮更新的相册
+        highlightAlbumId.value = formData.value.id
+        setTimeout(() => {
+          highlightAlbumId.value = null
+        }, 2000)
+        
+        alert('相册更新成功！')
+        console.log('✅ 相册更新成功:', formData.value.title)
+        
+      } catch (err: any) {
+        if (err.message.includes('网络不可用') || err.message.includes('fetch') || err.message.includes('network')) {
+          console.log('📝 网络不可用，添加到离线同步队列')
+          
+          const index = albums.value.findIndex(a => a.id === formData.value.id)
+          if (index !== -1) {
+            albums.value[index] = {
+              ...albums.value[index],
+              ...albumData,
+              _isOffline: true
+            } as Album & { _isOffline?: boolean }
+          }
+          
+          // 高亮更新的相册
+          highlightAlbumId.value = formData.value.id
+          setTimeout(() => {
+            highlightAlbumId.value = null
+          }, 2000)
+          
+          await addOfflineOperation('UPDATE', 'albums', albumData, formData.value.id)
+          alert('网络不可用，相册修改已保存到同步队列，网络恢复后将自动同步')
+        } else {
+          throw err
+        }
+      }
     }
     
     closeModals()
@@ -1436,6 +1531,30 @@ onUnmounted(() => {
   border-color: #fed7aa;
   background: #fffbeb;
   animation: cardHighlight 2s ease-out;
+}
+
+.album-card.card-offline {
+  border-left: 4px solid #f59e0b !important;
+  background-color: rgba(245, 158, 11, 0.05);
+}
+
+.album-card.card-deleted {
+  border-left: 4px solid #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.05);
+  opacity: 0.7;
+}
+
+.offline-badge, .deleted-badge {
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.offline-badge {
+  color: #f59e0b;
+}
+
+.deleted-badge {
+  color: #ef4444;
 }
 
 @keyframes cardHighlight {

@@ -124,7 +124,11 @@
               v-for="post in paginatedPosts"
               :key="post.id"
               class="table-row"
-              :class="{ 'row-highlight': post.id === highlightPostId }"
+              :class="{ 
+                'row-highlight': post.id === highlightPostId,
+                'row-offline': post._isOffline && !post._isDeleted,
+                'row-deleted': post._isDeleted
+              }"
             >
               <td class="id-cell">{{ post.id }}</td>
               <td class="title-cell">
@@ -133,6 +137,8 @@
                     {{ truncateText(post.title, 40) }}
                   </span>
                   <span v-if="post.title.length > 40" class="title-badge">...</span>
+                  <span v-if="post._isOffline && !post._isDeleted" class="offline-badge" title="离线操作，待同步">📝</span>
+                  <span v-if="post._isDeleted" class="deleted-badge" title="已标记删除，待同步">🗑️</span>
                 </div>
               </td>
               <td class="content-cell">
@@ -359,7 +365,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { addOfflineOperation } from '../utils/offlineSync'
 import { refreshApiCache } from '../registerServiceWorker'
+import { dataPrecacheService } from '../utils/dataPrecacheService'
 
 // 文章数据接口定义
 interface Post {
@@ -368,6 +376,9 @@ interface Post {
   body: string
   userId: number
   createdAt?: Date
+  // 离线操作标识
+  _isOffline?: boolean
+  _isDeleted?: boolean
 }
 
 // 用户数据接口定义
@@ -466,11 +477,31 @@ const totalPages = computed(() => {
 })
 
 // API调用函数
-const fetchPosts = async (_forceRefresh = false) => {
+const fetchPosts = async (forceRefresh = false) => {
   loading.value = true
   error.value = ''
   
   try {
+    let data: any[] | null = null
+    
+    // 如果不是强制刷新，先尝试从预缓存获取数据
+    if (!forceRefresh) {
+      data = await dataPrecacheService.getCachedData<any[]>('posts')
+      if (data) {
+        posts.value = data.map((post: Post, index: number) => ({
+          ...post,
+          createdAt: post.createdAt || new Date(Date.now() - (data!.length - index) * 24 * 60 * 60 * 1000)
+        }))
+        cacheStatus.value = 'fresh'
+        dataSource.value = '预缓存'
+        lastUpdateTime.value = new Date().toLocaleString('zh-CN')
+        console.log('✅ 从预缓存加载文章数据:', data.length, '篇文章')
+        loading.value = false
+        return
+      }
+    }
+    
+    // 如果预缓存没有数据或强制刷新，从网络获取
     const url = `${API_BASE_URL}/posts`
     const response = await fetch(url)
     
@@ -478,11 +509,11 @@ const fetchPosts = async (_forceRefresh = false) => {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
     
-    const data = await response.json()
+    data = await response.json()
     // 添加创建时间（模拟）
-    posts.value = data.map((post: Post, index: number) => ({
+    posts.value = data!.map((post: Post, index: number) => ({
       ...post,
-      createdAt: new Date(Date.now() - (data.length - index) * 24 * 60 * 60 * 1000)
+      createdAt: new Date(Date.now() - (data!.length - index) * 24 * 60 * 60 * 1000)
     }))
     
     // 检查缓存状态
@@ -497,18 +528,32 @@ const fetchPosts = async (_forceRefresh = false) => {
     
     lastUpdateTime.value = new Date().toLocaleString('zh-CN')
     
-    console.log('✅ 文章数据加载成功:', data.length, '篇文章')
+    console.log('✅ 文章数据加载成功:', data!.length, '篇文章')
     
   } catch (err: any) {
     console.error('❌ 获取文章数据失败:', err)
     
-    // 检查是否是网络错误
-    if (!navigator.onLine) {
-      error.value = '网络连接断开，请检查网络后重试'
-    } else if (err.message.includes('503')) {
-      error.value = '服务暂时不可用，已显示缓存数据'
+    // 网络失败时，尝试从预缓存获取数据
+    const cachedData = await dataPrecacheService.getCachedData<any[]>('posts')
+    if (cachedData) {
+      posts.value = cachedData.map((post: Post, index: number) => ({
+        ...post,
+        createdAt: post.createdAt || new Date(Date.now() - (cachedData.length - index) * 24 * 60 * 60 * 1000)
+      }))
+      cacheStatus.value = 'stale'
+      dataSource.value = '离线缓存'
+      lastUpdateTime.value = new Date().toLocaleString('zh-CN')
+      error.value = '网络连接失败，显示缓存数据'
+      console.log('📦 从预缓存加载文章数据（网络失败）:', cachedData.length, '篇文章')
     } else {
-      error.value = err.message || '获取文章数据失败'
+      // 检查是否是网络错误
+      if (!navigator.onLine) {
+        error.value = '网络连接断开，请检查网络后重试'
+      } else if (err.message.includes('503')) {
+        error.value = '服务暂时不可用，已显示缓存数据'
+      } else {
+        error.value = err.message || '获取文章数据失败'
+      }
     }
   } finally {
     loading.value = false
@@ -639,6 +684,8 @@ const deletePost = async (post: Post) => {
   }
   
   try {
+    if (!navigator.onLine) throw new Error('网络不可用')
+    
     await deletePostApi(post.id)
     
     // 从本地数组中移除
@@ -654,9 +701,31 @@ const deletePost = async (post: Post) => {
     console.log('✅ 文章删除成功:', post.title)
     
   } catch (err: any) {
-    error.value = err.message || '删除文章失败'
-    alert('删除失败: ' + error.value)
-    console.error('❌ 删除文章失败:', err)
+    if (err.message.includes('网络不可用') || err.message.includes('fetch') || err.message.includes('network')) {
+      console.log('📝 网络不可用，添加删除操作到离线同步队列')
+      
+      const index = posts.value.findIndex(p => p.id === post.id)
+      if (index !== -1) {
+        posts.value[index] = {
+          ...posts.value[index],
+          _isDeleted: true,
+          _isOffline: true
+        } as Post & { _isDeleted?: boolean, _isOffline?: boolean }
+      }
+      
+      // 高亮效果
+      highlightPostId.value = post.id
+      setTimeout(() => {
+        highlightPostId.value = null
+      }, 1000)
+      
+      await addOfflineOperation('DELETE', 'posts', { title: post.title }, post.id)
+      alert('网络不可用，删除操作已保存到同步队列，网络恢复后将自动同步')
+    } else {
+      error.value = err.message || '删除文章失败'
+      alert('删除失败: ' + error.value)
+      console.error('❌ 删除文章失败:', err)
+    }
   }
 }
 
@@ -672,48 +741,108 @@ const savePost = async () => {
     
     if (showAddModal.value) {
       // 添加文章
-      const newPost = await createPost(postData)
-      
-      // 添加到本地数组
-      const maxId = Math.max(...posts.value.map(p => p.id), 0)
-      const postToAdd = {
-        ...postData,
-        id: maxId + 1,
-        createdAt: new Date()
-      } as Post
-      
-      posts.value.unshift(postToAdd)
-      
-      // 高亮新添加的文章
-      highlightPostId.value = postToAdd.id
-      setTimeout(() => {
-        highlightPostId.value = null
-      }, 2000)
-      
-      alert('文章添加成功！')
-      console.log('✅ 文章添加成功:', newPost)
-      
-    } else {
-      // 更新文章
-      await updatePost(formData.value.id, postData)
-      
-      // 更新本地数组
-      const index = posts.value.findIndex(p => p.id === formData.value.id)
-      if (index !== -1) {
-        posts.value[index] = {
-          ...posts.value[index],
-          ...postData
+      try {
+        if (!navigator.onLine) throw new Error('网络不可用')
+        
+        const newPost = await createPost(postData)
+        
+        // 添加到本地数组
+        const maxId = Math.max(...posts.value.map(p => p.id), 0)
+        const postToAdd = {
+          ...postData,
+          id: maxId + 1,
+          createdAt: new Date()
+        } as Post
+        
+        posts.value.unshift(postToAdd)
+        
+        // 高亮新添加的文章
+        highlightPostId.value = postToAdd.id
+        setTimeout(() => {
+          highlightPostId.value = null
+        }, 2000)
+        
+        alert('文章添加成功！')
+        console.log('✅ 文章添加成功:', newPost)
+        
+      } catch (err: any) {
+        if (err.message.includes('网络不可用') || err.message.includes('fetch') || err.message.includes('network')) {
+          console.log('📝 网络不可用，添加到离线同步队列')
+          
+          // 生成临时ID
+          const maxId = Math.max(...posts.value.map(p => p.id), 0)
+          const tempPost = {
+            ...postData,
+            id: maxId + 1,
+            createdAt: new Date(),
+            _isOffline: true
+          } as Post & { _isOffline?: boolean }
+          
+          posts.value.unshift(tempPost)
+          
+          // 高亮新添加的文章
+          highlightPostId.value = tempPost.id
+          setTimeout(() => {
+            highlightPostId.value = null
+          }, 2000)
+          
+          await addOfflineOperation('CREATE', 'posts', postData)
+          alert('网络不可用，文章已添加到同步队列，网络恢复后将自动同步')
+        } else {
+          throw err
         }
       }
       
-      // 高亮更新的文章
-      highlightPostId.value = formData.value.id
-      setTimeout(() => {
-        highlightPostId.value = null
-      }, 2000)
-      
-      alert('文章更新成功！')
-      console.log('✅ 文章更新成功:', formData.value.title)
+    } else {
+      // 更新文章
+      try {
+        if (!navigator.onLine) throw new Error('网络不可用')
+        
+        await updatePost(formData.value.id, postData)
+        
+        // 更新本地数组
+        const index = posts.value.findIndex(p => p.id === formData.value.id)
+        if (index !== -1) {
+          posts.value[index] = {
+            ...posts.value[index],
+            ...postData
+          }
+        }
+        
+        // 高亮更新的文章
+        highlightPostId.value = formData.value.id
+        setTimeout(() => {
+          highlightPostId.value = null
+        }, 2000)
+        
+        alert('文章更新成功！')
+        console.log('✅ 文章更新成功:', formData.value.title)
+        
+      } catch (err: any) {
+        if (err.message.includes('网络不可用') || err.message.includes('fetch') || err.message.includes('network')) {
+          console.log('📝 网络不可用，添加到离线同步队列')
+          
+          const index = posts.value.findIndex(p => p.id === formData.value.id)
+          if (index !== -1) {
+            posts.value[index] = {
+              ...posts.value[index],
+              ...postData,
+              _isOffline: true
+            } as Post & { _isOffline?: boolean }
+          }
+          
+          // 高亮更新的文章
+          highlightPostId.value = formData.value.id
+          setTimeout(() => {
+            highlightPostId.value = null
+          }, 2000)
+          
+          await addOfflineOperation('UPDATE', 'posts', postData, formData.value.id)
+          alert('网络不可用，文章修改已保存到同步队列，网络恢复后将自动同步')
+        } else {
+          throw err
+        }
+      }
     }
     
     closeModals()
@@ -1209,6 +1338,30 @@ onUnmounted(() => {
 .table-row.row-highlight {
   background: #dcfce7;
   animation: highlight 2s ease-out;
+}
+
+.table-row.row-offline {
+  border-left: 4px solid #f59e0b !important;
+  background-color: rgba(245, 158, 11, 0.05);
+}
+
+.table-row.row-deleted {
+  border-left: 4px solid #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.05);
+  opacity: 0.7;
+}
+
+.offline-badge, .deleted-badge {
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.offline-badge {
+  color: #f59e0b;
+}
+
+.deleted-badge {
+  color: #ef4444;
 }
 
 @keyframes highlight {

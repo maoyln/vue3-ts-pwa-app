@@ -26,7 +26,7 @@
           <router-link 
             to="/" 
             class="nav-link"
-            :class="{ active: $route.path === '/' }"
+            :class="{ active: route.path === '/' }"
             @click="closeMobileMenu"
           >
             <span class="nav-icon">🏠</span>
@@ -37,7 +37,7 @@
           <router-link 
             to="/weather" 
             class="nav-link"
-            :class="{ active: $route.path === '/weather' }"
+            :class="{ active: route.path === '/weather' }"
             @click="closeMobileMenu"
           >
             <span class="nav-icon">🌤️</span>
@@ -48,7 +48,7 @@
           <router-link 
             to="/news" 
             class="nav-link"
-            :class="{ active: $route.path === '/news' }"
+            :class="{ active: route.path === '/news' }"
             @click="closeMobileMenu"
           >
             <span class="nav-icon">📰</span>
@@ -59,7 +59,7 @@
           <router-link 
             to="/users" 
             class="nav-link"
-            :class="{ active: $route.path === '/users' }"
+            :class="{ active: route.path === '/users' }"
             @click="closeMobileMenu"
           >
             <span class="nav-icon">👥</span>
@@ -70,7 +70,7 @@
           <router-link 
             to="/posts" 
             class="nav-link"
-            :class="{ active: $route.path === '/posts' }"
+            :class="{ active: route.path === '/posts' }"
             @click="closeMobileMenu"
           >
             <span class="nav-icon">📝</span>
@@ -82,7 +82,7 @@
           <router-link 
             to="/comments" 
             class="nav-link"
-            :class="{ active: $route.path === '/comments' }"
+            :class="{ active: route.path === '/comments' }"
             @click="closeMobileMenu"
           >
             <span class="nav-icon">💬</span>
@@ -94,7 +94,7 @@
           <router-link 
             to="/albums" 
             class="nav-link"
-            :class="{ active: $route.path === '/albums' }"
+            :class="{ active: route.path === '/albums' }"
             @click="closeMobileMenu"
           >
             <span class="nav-icon">📸</span>
@@ -104,9 +104,21 @@
         
         <li class="nav-item">
           <router-link 
+            to="/documents" 
+            class="nav-link"
+            :class="{ active: route.path === '/documents' }"
+            @click="closeMobileMenu"
+          >
+            <span class="nav-icon">📄</span>
+            <span class="nav-text">文档</span>
+          </router-link>
+        </li>
+        
+        <li class="nav-item">
+          <router-link 
             to="/about" 
             class="nav-link"
-            :class="{ active: $route.path === '/about' }"
+            :class="{ active: route.path === '/about' }"
             @click="closeMobileMenu"
           >
             <span class="nav-icon">ℹ️</span>
@@ -141,6 +153,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
+
+// Vue Router
+// const router = useRouter()
+const route = useRoute()
 
 // 响应式数据
 const isMobileMenuOpen = ref(false)
