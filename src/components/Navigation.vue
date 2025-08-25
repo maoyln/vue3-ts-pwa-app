@@ -116,6 +116,30 @@
         
         <li class="nav-item">
           <router-link 
+            to="/api-demo" 
+            class="nav-link"
+            :class="{ active: route.path === '/api-demo' }"
+            @click="closeMobileMenu"
+          >
+            <span class="nav-icon">🚀</span>
+            <span class="nav-text">API演示</span>
+          </router-link>
+        </li>
+        
+        <li class="nav-item">
+          <router-link 
+            to="/pwa-dashboard" 
+            class="nav-link"
+            :class="{ active: route.path === '/pwa-dashboard' }"
+            @click="closeMobileMenu"
+          >
+            <span class="nav-icon">📊</span>
+            <span class="nav-text">PWA控制面板</span>
+          </router-link>
+        </li>
+        
+        <li class="nav-item">
+          <router-link 
             to="/about" 
             class="nav-link"
             :class="{ active: route.path === '/about' }"

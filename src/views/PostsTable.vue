@@ -368,6 +368,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { addOfflineOperation } from '../utils/offlineSync'
 import { refreshApiCache } from '../registerServiceWorker'
 import { dataPrecacheService } from '../utils/dataPrecacheService'
+import { PostAPI, UserAPI } from '../api'
 
 // 文章数据接口定义
 interface Post {
@@ -501,34 +502,35 @@ const fetchPosts = async (forceRefresh = false) => {
       }
     }
     
-    // 如果预缓存没有数据或强制刷新，从网络获取
-    const url = `${API_BASE_URL}/posts`
-    const response = await fetch(url)
+    // 使用新的axios封装API
+    const response = await PostAPI.getPosts({
+      useCache: !forceRefresh,
+      cacheTime: 5 * 60 * 1000, // 5分钟缓存
+      cacheStrategy: forceRefresh ? 'networkOnly' : 'networkFirst',
+      offlineSupport: true,
+      retry: true,
+      retryCount: 3,
+      showLoading: false // 我们自己管理loading状态
+    })
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-    
-    data = await response.json()
-    // 添加创建时间（模拟）
-    posts.value = data!.map((post: Post, index: number) => ({
-      ...post,
-      createdAt: new Date(Date.now() - (data!.length - index) * 24 * 60 * 60 * 1000)
-    }))
-    
-    // 检查缓存状态
-    const cacheStatusHeader = response.headers.get('sw-cache-status')
-    if (cacheStatusHeader) {
-      cacheStatus.value = cacheStatusHeader as 'fresh' | 'stale' | 'miss'
-      dataSource.value = cacheStatusHeader === 'miss' ? '网络' : '缓存'
+    if (response.success && response.data) {
+      // 添加创建时间（模拟）
+      posts.value = response.data.map((post: Post, index: number) => ({
+        ...post,
+        createdAt: post.createdAt || new Date(Date.now() - (response.data!.length - index) * 24 * 60 * 60 * 1000)
+      }))
+      
+      cacheStatus.value = response.fromCache ? 'fresh' : 'miss'
+      dataSource.value = response.fromCache ? '缓存' : '网络'
+      if (response.offline) {
+        dataSource.value = '离线缓存'
+        cacheStatus.value = 'stale'
+      }
+      lastUpdateTime.value = new Date().toLocaleString('zh-CN')
+      console.log('✅ 文章数据加载成功:', response.data.length, '篇文章')
     } else {
-      cacheStatus.value = 'fresh'
-      dataSource.value = '网络'
+      throw new Error(response.message || '获取文章数据失败')
     }
-    
-    lastUpdateTime.value = new Date().toLocaleString('zh-CN')
-    
-    console.log('✅ 文章数据加载成功:', data!.length, '篇文章')
     
   } catch (err: any) {
     console.error('❌ 获取文章数据失败:', err)
@@ -562,60 +564,63 @@ const fetchPosts = async (forceRefresh = false) => {
 
 const fetchUsers = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/users`)
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+    const response = await UserAPI.getUsers({
+      useCache: true,
+      cacheTime: 10 * 60 * 1000, // 10分钟缓存
+      cacheStrategy: 'networkFirst',
+      offlineSupport: true,
+      silent: true // 静默模式，不显示错误提示
+    })
+    
+    if (response.success && response.data) {
+      users.value = response.data
+      console.log('✅ 用户数据加载成功:', response.data.length, '个用户')
     }
-    const data = await response.json()
-    users.value = data
-    console.log('✅ 用户数据加载成功:', data.length, '个用户')
   } catch (err: any) {
     console.error('❌ 获取用户数据失败:', err)
   }
 }
 
 const createPost = async (postData: Partial<Post>) => {
-  const response = await fetch(`${API_BASE_URL}/posts`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(postData)
+  const response = await PostAPI.createPost(postData, {
+    retry: true,
+    retryCount: 2,
+    showLoading: true
   })
   
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
+  if (!response.success) {
+    throw new Error(response.message || '创建文章失败')
   }
   
-  return response.json()
+  return response.data
 }
 
 const updatePost = async (id: number, postData: Partial<Post>) => {
-  const response = await fetch(`${API_BASE_URL}/posts/${id}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(postData)
+  const response = await PostAPI.updatePost(id, postData, {
+    retry: true,
+    retryCount: 2,
+    showLoading: true
   })
   
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
+  if (!response.success) {
+    throw new Error(response.message || '更新文章失败')
   }
   
-  return response.json()
+  return response.data
 }
 
 const deletePostApi = async (id: number) => {
-  const response = await fetch(`${API_BASE_URL}/posts/${id}`, {
-    method: 'DELETE'
+  const response = await PostAPI.deletePost(id, {
+    retry: true,
+    retryCount: 2,
+    showLoading: true
   })
   
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
+  if (!response.success) {
+    throw new Error(response.message || '删除文章失败')
   }
   
-  return response.ok
+  return true
 }
 
 // 事件处理函数

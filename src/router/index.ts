@@ -18,6 +18,8 @@ const PostsTable = () => import('../views/PostsTable.vue')
 const CommentsTable = () => import('../views/CommentsTable.vue')
 const AlbumsTable = () => import('../views/AlbumsTable.vue')
 const About = () => import('../views/About.vue')
+const ApiDemo = () => import('../views/ApiDemo.vue')
+const PWADashboard = () => import('../components/EnhancedPWADashboard.vue')
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -89,6 +91,24 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import('../views/DocumentManager.vue'),
     meta: {
       title: '文档管理',
+      keepAlive: true
+    }
+  },
+  {
+    path: '/api-demo',
+    name: 'ApiDemo',
+    component: ApiDemo,
+    meta: {
+      title: 'API演示',
+      keepAlive: true
+    }
+  },
+  {
+    path: '/pwa-dashboard',
+    name: 'PWADashboard',
+    component: PWADashboard,
+    meta: {
+      title: 'PWA控制面板',
       keepAlive: true
     }
   },

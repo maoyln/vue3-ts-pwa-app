@@ -81,100 +81,162 @@
       <button @click="refreshData" class="retry-btn">重试</button>
     </div>
 
-    <!-- 数据表格 -->
-    <div v-if="!loading && !error" class="table-container">
-      <div class="table-info">
-        <span>共 {{ filteredUsers.length }} 条记录</span>
-        <span v-if="searchQuery">（搜索结果）</span>
+    <!-- 数据展示区域 -->
+    <div v-if="!loading && !error" class="data-container">
+      <div class="data-header">
+        <div class="data-info">
+          <span class="record-count">共 {{ filteredUsers.length }} 条记录</span>
+          <span v-if="searchQuery" class="search-result">（搜索结果）</span>
+        </div>
+        <div class="view-controls">
+          <button 
+            @click="viewMode = 'grid'" 
+            :class="['view-btn', { active: viewMode === 'grid' }]"
+            title="网格视图"
+          >
+            📊
+          </button>
+          <button 
+            @click="viewMode = 'list'" 
+            :class="['view-btn', { active: viewMode === 'list' }]"
+            title="列表视图"
+          >
+            📋
+          </button>
+        </div>
       </div>
       
-      <div class="table-wrapper">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th @click="sortBy('id')" class="sortable">
-                ID
-                <span class="sort-indicator" :class="getSortClass('id')">↕️</span>
-              </th>
-              <th @click="sortBy('name')" class="sortable">
-                姓名
-                <span class="sort-indicator" :class="getSortClass('name')">↕️</span>
-              </th>
-              <th @click="sortBy('username')" class="sortable">
-                用户名
-                <span class="sort-indicator" :class="getSortClass('username')">↕️</span>
-              </th>
-              <th @click="sortBy('email')" class="sortable">
-                邮箱
-                <span class="sort-indicator" :class="getSortClass('email')">↕️</span>
-              </th>
-              <th>电话</th>
-              <th>网站</th>
-              <th>公司</th>
-              <th class="actions-column">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="user in paginatedUsers"
-              :key="user.id"
-              class="table-row"
-              :class="{ 'row-highlight': user.id === highlightUserId }"
-            >
-              <td class="id-cell">{{ user.id }}</td>
-              <td class="name-cell">
-                <div class="user-info">
-                  <div class="user-avatar" :class="{ 'offline': user._isOffline, 'deleted': user._isDeleted }">
-                    {{ getInitials(user.name) }}
-                  </div>
-                  <span class="user-name">
-                    {{ user.name }}
-                    <span v-if="user._isOffline && !user._isDeleted" class="offline-badge" title="离线操作，待同步">📝</span>
-                    <span v-if="user._isDeleted" class="deleted-badge" title="已标记删除，待同步">🗑️</span>
-                  </span>
-                </div>
-              </td>
-              <td class="username-cell">{{ user.username }}</td>
-              <td class="email-cell">
-                <a :href="`mailto:${user.email}`" class="email-link">
-                  {{ user.email }}
-                </a>
-              </td>
-              <td class="phone-cell">{{ user.phone }}</td>
-              <td class="website-cell">
-                <a :href="`https://${user.website}`" target="_blank" rel="noopener" class="website-link">
+      <!-- 网格布局 -->
+      <div v-if="viewMode === 'grid'" class="users-grid">
+        <div 
+          v-for="user in paginatedUsers" 
+          :key="user.id" 
+          class="user-card"
+          :class="{ 
+            'highlight': user.id === highlightUserId,
+            'offline': user._isOffline,
+            'deleted': user._isDeleted 
+          }"
+        >
+          <div class="card-header">
+            <div class="user-avatar" :class="{ 'offline': user._isOffline, 'deleted': user._isDeleted }">
+              {{ getInitials(user.name) }}
+            </div>
+            <div class="user-basic">
+              <h3 class="user-name">
+                {{ user.name }}
+                <span v-if="user._isOffline && !user._isDeleted" class="status-badge offline-badge" title="离线操作，待同步">📝</span>
+                <span v-if="user._isDeleted" class="status-badge deleted-badge" title="已标记删除，待同步">🗑️</span>
+              </h3>
+              <p class="user-username">@{{ user.username }}</p>
+              <span class="user-id">#{{ user.id }}</span>
+            </div>
+            <div class="card-actions">
+              <button @click="viewUser(user)" class="action-btn view-btn" title="查看详情">
+                👁️
+              </button>
+              <button @click="editUser(user)" class="action-btn edit-btn" title="编辑">
+                ✏️
+              </button>
+              <button @click="deleteUser(user)" class="action-btn delete-btn" title="删除">
+                🗑️
+              </button>
+            </div>
+          </div>
+          
+          <div class="card-content">
+            <div class="info-section">
+              <div class="info-item">
+                <span class="info-label">📧</span>
+                <a :href="`mailto:${user.email}`" class="info-link">{{ user.email }}</a>
+              </div>
+              
+              <div class="info-item">
+                <span class="info-label">📱</span>
+                <span class="info-value">{{ user.phone }}</span>
+              </div>
+              
+              <div class="info-item">
+                <span class="info-label">🌐</span>
+                <a :href="`https://${user.website}`" target="_blank" rel="noopener" class="info-link">
                   {{ user.website }}
                 </a>
-              </td>
-              <td class="company-cell">{{ user.company?.name || '-' }}</td>
-              <td class="actions-cell">
-                <div class="action-buttons">
-                  <button
-                    @click="viewUser(user)"
-                    class="action-btn view-btn"
-                    title="查看详情"
-                  >
-                    👁️
-                  </button>
-                  <button
-                    @click="editUser(user)"
-                    class="action-btn edit-btn"
-                    title="编辑"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    @click="deleteUser(user)"
-                    class="action-btn delete-btn"
-                    title="删除"
-                  >
-                    🗑️
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </div>
+              
+              <div class="info-item">
+                <span class="info-label">🏢</span>
+                <span class="info-value">{{ user.company?.name || '-' }}</span>
+              </div>
+              
+              <div class="info-item">
+                <span class="info-label">📍</span>
+                <span class="info-value">
+                  {{ user.address?.city || '-' }}, {{ user.address?.street || '-' }}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="card-footer">
+            <div class="user-stats">
+              <div class="stat-item">
+                <span class="stat-label">邮编</span>
+                <span class="stat-value">{{ user.address?.zipcode || '-' }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">套房</span>
+                <span class="stat-value">{{ user.address?.suite || '-' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 列表布局 -->
+      <div v-else class="users-list">
+        <div 
+          v-for="user in paginatedUsers" 
+          :key="user.id" 
+          class="user-list-item"
+          :class="{ 
+            'highlight': user.id === highlightUserId,
+            'offline': user._isOffline,
+            'deleted': user._isDeleted 
+          }"
+        >
+          <div class="list-item-main">
+            <div class="user-avatar" :class="{ 'offline': user._isOffline, 'deleted': user._isDeleted }">
+              {{ getInitials(user.name) }}
+            </div>
+            <div class="user-info">
+              <div class="user-primary">
+                <h4 class="user-name">
+                  {{ user.name }}
+                  <span v-if="user._isOffline && !user._isDeleted" class="status-badge offline-badge">📝</span>
+                  <span v-if="user._isDeleted" class="status-badge deleted-badge">🗑️</span>
+                </h4>
+                <span class="user-id">#{{ user.id }}</span>
+              </div>
+              <div class="user-secondary">
+                <span class="user-username">@{{ user.username }}</span>
+                <span class="separator">•</span>
+                <a :href="`mailto:${user.email}`" class="user-email">{{ user.email }}</a>
+              </div>
+              <div class="user-details">
+                <span class="detail-item">📱 {{ user.phone }}</span>
+                <span class="separator">•</span>
+                <span class="detail-item">🏢 {{ user.company?.name || '-' }}</span>
+                <span class="separator">•</span>
+                <span class="detail-item">📍 {{ user.address?.city || '-' }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="list-item-actions">
+            <button @click="viewUser(user)" class="action-btn view-btn" title="查看详情">👁️</button>
+            <button @click="editUser(user)" class="action-btn edit-btn" title="编辑">✏️</button>
+            <button @click="deleteUser(user)" class="action-btn delete-btn" title="删除">🗑️</button>
+          </div>
+        </div>
       </div>
 
       <!-- 分页 -->
@@ -403,6 +465,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { addOfflineOperation } from '../utils/offlineSync'
 import { refreshApiCache } from '../registerServiceWorker'
 import { dataPrecacheService } from '../utils/dataPrecacheService'
+import { UserAPI } from '../api'
 
 // 用户数据接口定义
 interface User {
@@ -443,6 +506,7 @@ const pageSize = ref(10)
 const sortField = ref('id')
 const sortOrder = ref<'asc' | 'desc'>('asc')
 const highlightUserId = ref<number | null>(null)
+const viewMode = ref<'grid' | 'list'>('grid')
 
 // 模态框状态
 const showAddModal = ref(false)
@@ -533,30 +597,30 @@ const fetchUsers = async (forceRefresh = false) => {
       }
     }
     
-    // 如果预缓存没有数据或强制刷新，从网络获取
-    const url = `${API_BASE_URL}/users`
-    const response = await fetch(url)
+    // 使用新的axios封装API
+    const response = await UserAPI.getUsers({
+      useCache: !forceRefresh,
+      cacheTime: 5 * 60 * 1000, // 5分钟缓存
+      cacheStrategy: forceRefresh ? 'networkOnly' : 'networkFirst',
+      offlineSupport: true,
+      retry: true,
+      retryCount: 3,
+      showLoading: false // 我们自己管理loading状态
+    })
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-    
-    data = await response.json()
-    users.value = data!
-    
-    // 检查缓存状态
-    const cacheStatusHeader = response.headers.get('sw-cache-status')
-    if (cacheStatusHeader) {
-      cacheStatus.value = cacheStatusHeader as 'fresh' | 'stale' | 'miss'
-      dataSource.value = cacheStatusHeader === 'miss' ? '网络' : '缓存'
+    if (response.success && response.data) {
+      users.value = response.data
+      cacheStatus.value = response.fromCache ? 'fresh' : 'miss'
+      dataSource.value = response.fromCache ? '缓存' : '网络'
+      if (response.offline) {
+        dataSource.value = '离线缓存'
+        cacheStatus.value = 'stale'
+      }
+      lastUpdateTime.value = new Date().toLocaleString('zh-CN')
+      console.log('✅ 用户数据加载成功:', response.data.length, '条记录')
     } else {
-      cacheStatus.value = 'fresh'
-      dataSource.value = '网络'
+      throw new Error(response.message || '获取用户数据失败')
     }
-    
-    lastUpdateTime.value = new Date().toLocaleString('zh-CN')
-    
-    console.log('✅ 用户数据加载成功:', data!.length, '条记录')
     
   } catch (err: any) {
     console.error('❌ 获取用户数据失败:', err)
@@ -586,47 +650,45 @@ const fetchUsers = async (forceRefresh = false) => {
 }
 
 const createUser = async (userData: Partial<User>) => {
-  const response = await fetch(`${API_BASE_URL}/users`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(userData)
+  const response = await UserAPI.createUser(userData, {
+    retry: true,
+    retryCount: 2,
+    showLoading: true
   })
   
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
+  if (!response.success) {
+    throw new Error(response.message || '创建用户失败')
   }
   
-  return response.json()
+  return response.data
 }
 
 const updateUser = async (id: number, userData: Partial<User>) => {
-  const response = await fetch(`${API_BASE_URL}/users/${id}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(userData)
+  const response = await UserAPI.updateUser(id, userData, {
+    retry: true,
+    retryCount: 2,
+    showLoading: true
   })
   
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
+  if (!response.success) {
+    throw new Error(response.message || '更新用户失败')
   }
   
-  return response.json()
+  return response.data
 }
 
 const deleteUserApi = async (id: number) => {
-  const response = await fetch(`${API_BASE_URL}/users/${id}`, {
-    method: 'DELETE'
+  const response = await UserAPI.deleteUser(id, {
+    retry: true,
+    retryCount: 2,
+    showLoading: true
   })
   
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
+  if (!response.success) {
+    throw new Error(response.message || '删除用户失败')
   }
   
-  return response.ok
+  return true
 }
 
 // 事件处理函数
@@ -656,19 +718,20 @@ const handleSearch = () => {
   currentPage.value = 1
 }
 
-const sortBy = (field: string) => {
-  if (sortField.value === field) {
-    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
-  } else {
-    sortField.value = field
-    sortOrder.value = 'asc'
-  }
-}
+// 排序功能（暂时注释，因为新布局不使用表格排序）
+// const sortBy = (field: string) => {
+//   if (sortField.value === field) {
+//     sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+//   } else {
+//     sortField.value = field
+//     sortOrder.value = 'asc'
+//   }
+// }
 
-const getSortClass = (field: string) => {
-  if (sortField.value !== field) return ''
-  return sortOrder.value === 'asc' ? 'sort-asc' : 'sort-desc'
-}
+// const getSortClass = (field: string) => {
+//   if (sortField.value !== field) return ''
+//   return sortOrder.value === 'asc' ? 'sort-asc' : 'sort-desc'
+// }
 
 const viewUser = (user: User) => {
   selectedUser.value = user
@@ -1219,6 +1282,384 @@ onUnmounted(() => {
   background: #b91c1c;
 }
 
+/* 数据展示区域样式 */
+.data-container {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.data-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.data-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.record-count {
+  font-weight: 600;
+  color: #374151;
+}
+
+.search-result {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.view-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.view-btn {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 16px;
+}
+
+.view-btn:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.view-btn.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
+/* 网格布局样式 */
+.users-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 24px;
+  padding: 24px;
+}
+
+.user-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.user-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+  border-color: #3b82f6;
+}
+
+.user-card.highlight {
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.user-card.offline {
+  border-left: 4px solid #f59e0b;
+}
+
+.user-card.deleted {
+  opacity: 0.6;
+  border-left: 4px solid #ef4444;
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.user-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.user-avatar.offline {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.user-avatar.deleted {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.user-basic {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-username {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 0 0 8px 0;
+}
+
+.user-id {
+  background: #e5e7eb;
+  color: #374151;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge {
+  font-size: 14px;
+}
+
+.card-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.action-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.action-btn:hover {
+  background: white;
+  transform: scale(1.1);
+}
+
+.view-btn:hover { box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3); }
+.edit-btn:hover { box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3); }
+.delete-btn:hover { box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3); }
+
+.card-content {
+  padding: 20px;
+}
+
+.info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.info-label {
+  font-size: 16px;
+  width: 24px;
+  flex-shrink: 0;
+}
+
+.info-value {
+  color: #374151;
+  font-size: 14px;
+  flex: 1;
+}
+
+.info-link {
+  color: #3b82f6;
+  text-decoration: none;
+  font-size: 14px;
+  flex: 1;
+}
+
+.info-link:hover {
+  text-decoration: underline;
+}
+
+.card-footer {
+  padding: 16px 20px;
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+}
+
+.user-stats {
+  display: flex;
+  gap: 24px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 14px;
+  color: #111827;
+  font-weight: 600;
+}
+
+/* 列表布局样式 */
+.users-list {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.user-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.user-list-item:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.user-list-item.highlight {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.02);
+}
+
+.user-list-item.offline {
+  border-left: 4px solid #f59e0b;
+}
+
+.user-list-item.deleted {
+  opacity: 0.6;
+  border-left: 4px solid #ef4444;
+}
+
+.list-item-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  min-width: 0;
+}
+
+.user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-primary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.user-primary .user-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-primary .user-id {
+  background: #e5e7eb;
+  color: #374151;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.user-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.user-username {
+  color: #6b7280;
+}
+
+.user-email {
+  color: #3b82f6;
+  text-decoration: none;
+}
+
+.user-email:hover {
+  text-decoration: underline;
+}
+
+.separator {
+  color: #d1d5db;
+}
+
+.user-details {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.detail-item {
+  white-space: nowrap;
+}
+
+.list-item-actions {
+  display: flex;
+  gap: 8px;
+}
+
 /* 表格样式 */
 .table-container {
   background: white;
@@ -1619,6 +2060,24 @@ onUnmounted(() => {
 
 /* 响应式设计 */
 @media (max-width: 1024px) {
+  .users-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    padding: 20px;
+  }
+  
+  .user-card {
+    border-radius: 12px;
+  }
+  
+  .card-header {
+    padding: 16px;
+  }
+  
+  .card-content {
+    padding: 16px;
+  }
+  
   .table-wrapper {
     font-size: 12px;
   }
@@ -1658,6 +2117,87 @@ onUnmounted(() => {
   
   .search-input {
     width: 100%;
+  }
+  
+  .data-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+    padding: 16px 20px;
+  }
+  
+  .data-info {
+    justify-content: center;
+  }
+  
+  .view-controls {
+    justify-content: center;
+  }
+  
+  .users-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 16px;
+  }
+  
+  .user-card {
+    border-radius: 12px;
+  }
+  
+  .card-header {
+    padding: 16px;
+    gap: 12px;
+  }
+  
+  .user-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+  
+  .user-name {
+    font-size: 16px;
+  }
+  
+  .card-content {
+    padding: 16px;
+  }
+  
+  .info-item {
+    padding: 6px 0;
+  }
+  
+  .card-footer {
+    padding: 12px 16px;
+  }
+  
+  .user-stats {
+    gap: 16px;
+  }
+  
+  .users-list {
+    padding: 16px;
+    gap: 12px;
+  }
+  
+  .user-list-item {
+    padding: 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .list-item-main {
+    gap: 12px;
+  }
+  
+  .user-details {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+  
+  .list-item-actions {
+    justify-content: center;
   }
   
   .form-row {

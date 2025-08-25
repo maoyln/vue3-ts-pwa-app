@@ -413,6 +413,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { refreshApiCache } from '../registerServiceWorker'
 import { addOfflineOperation } from '../utils/offlineSync'
+// import { CommentAPI, PostAPI } from '../api' // 暂时注释，待后续使用
 
 // 评论数据接口定义
 interface Comment {
