@@ -5,6 +5,7 @@ import router from './router'
 import './registerServiceWorker.ts'
 import './style.css'
 import { dataPrecacheService } from './utils/dataPrecacheService'
+import { initTabUtils } from './utils/tabUtils'
 
 const app = createApp(App)
 
@@ -69,6 +70,10 @@ const initializeApp = async () => {
     // 初始化数据预缓存服务
     updateStatus('正在初始化数据缓存...')
     await dataPrecacheService.init()
+    
+    // 初始化页签工具
+    updateStatus('正在初始化页签系统...')
+    initTabUtils()
     
     updateStatus('应用初始化完成')
     

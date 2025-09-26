@@ -23,131 +23,143 @@
 
       <ul class="nav-list">
         <li class="nav-item">
-          <router-link 
-            to="/" 
+          <a 
+            href="#"
             class="nav-link"
             :class="{ active: route.path === '/' }"
-            @click="closeMobileMenu"
+            @click.prevent="handleNavClick('/', '首页', '🏠')"
           >
             <span class="nav-icon">🏠</span>
             <span class="nav-text">首页</span>
-          </router-link>
+          </a>
         </li>
         <li class="nav-item">
-          <router-link 
-            to="/weather" 
+          <a 
+            href="#"
             class="nav-link"
             :class="{ active: route.path === '/weather' }"
-            @click="closeMobileMenu"
+            @click.prevent="handleNavClick('/weather', '天气预报', '🌤️')"
           >
             <span class="nav-icon">🌤️</span>
             <span class="nav-text">天气</span>
-          </router-link>
+          </a>
         </li>
         <li class="nav-item">
-          <router-link 
-            to="/news" 
+          <a 
+            href="#"
             class="nav-link"
             :class="{ active: route.path === '/news' }"
-            @click="closeMobileMenu"
+            @click.prevent="handleNavClick('/news', '新闻资讯', '📰')"
           >
             <span class="nav-icon">📰</span>
             <span class="nav-text">新闻</span>
-          </router-link>
+          </a>
         </li>
         <li class="nav-item">
-          <router-link 
-            to="/users" 
+          <a 
+            href="#"
             class="nav-link"
             :class="{ active: route.path === '/users' }"
-            @click="closeMobileMenu"
+            @click.prevent="handleNavClick('/users', '用户管理', '👥')"
           >
             <span class="nav-icon">👥</span>
             <span class="nav-text">用户</span>
-          </router-link>
+          </a>
         </li>
         <li class="nav-item">
-          <router-link 
-            to="/posts" 
+          <a 
+            href="#"
             class="nav-link"
             :class="{ active: route.path === '/posts' }"
-            @click="closeMobileMenu"
+            @click.prevent="handleNavClick('/posts', '文章管理', '📝')"
           >
             <span class="nav-icon">📝</span>
             <span class="nav-text">文章</span>
-          </router-link>
+          </a>
         </li>
         
         <li class="nav-item">
-          <router-link 
-            to="/comments" 
+          <a 
+            href="#"
             class="nav-link"
             :class="{ active: route.path === '/comments' }"
-            @click="closeMobileMenu"
+            @click.prevent="handleNavClick('/comments', '评论管理', '💬')"
           >
             <span class="nav-icon">💬</span>
             <span class="nav-text">评论</span>
-          </router-link>
+          </a>
         </li>
         
         <li class="nav-item">
-          <router-link 
-            to="/albums" 
+          <a 
+            href="#"
             class="nav-link"
             :class="{ active: route.path === '/albums' }"
-            @click="closeMobileMenu"
+            @click.prevent="handleNavClick('/albums', '相册管理', '📸')"
           >
             <span class="nav-icon">📸</span>
             <span class="nav-text">相册</span>
-          </router-link>
+          </a>
         </li>
         
         <li class="nav-item">
-          <router-link 
-            to="/documents" 
+          <a 
+            href="#"
             class="nav-link"
             :class="{ active: route.path === '/documents' }"
-            @click="closeMobileMenu"
+            @click.prevent="handleNavClick('/documents', '文档管理', '📄')"
           >
             <span class="nav-icon">📄</span>
             <span class="nav-text">文档</span>
-          </router-link>
+          </a>
         </li>
         
         <li class="nav-item">
-          <router-link 
-            to="/api-demo" 
+          <a 
+            href="#"
             class="nav-link"
             :class="{ active: route.path === '/api-demo' }"
-            @click="closeMobileMenu"
+            @click.prevent="handleNavClick('/api-demo', 'API演示', '🚀')"
           >
             <span class="nav-icon">🚀</span>
             <span class="nav-text">API演示</span>
-          </router-link>
+          </a>
         </li>
         
         <li class="nav-item">
-          <router-link 
-            to="/pwa-dashboard" 
+          <a 
+            href="#"
+            class="nav-link"
+            :class="{ active: route.path === '/tab-demo' }"
+            @click.prevent="handleNavClick('/tab-demo', '多页签演示', '🗂️')"
+          >
+            <span class="nav-icon">🗂️</span>
+            <span class="nav-text">多页签演示</span>
+          </a>
+        </li>
+        
+        <li class="nav-item">
+          <a 
+            href="#"
             class="nav-link"
             :class="{ active: route.path === '/pwa-dashboard' }"
-            @click="closeMobileMenu"
+            @click.prevent="handleNavClick('/pwa-dashboard', 'PWA控制面板', '📊')"
           >
             <span class="nav-icon">📊</span>
             <span class="nav-text">PWA控制面板</span>
-          </router-link>
+          </a>
         </li>
         
         <li class="nav-item">
-          <router-link 
-            to="/about" 
+          <a 
+            href="#"
             class="nav-link"
             :class="{ active: route.path === '/about' }"
-            @click="closeMobileMenu"
+            @click.prevent="handleNavClick('/about', '关于', 'ℹ️')"
           >
             <span class="nav-icon">ℹ️</span>
             <span class="nav-text">关于</span>
-          </router-link>
+          </a>
         </li>
       </ul>
 
@@ -177,11 +189,15 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useTabManager } from '../composables/useTabManager'
 
 // Vue Router
-// const router = useRouter()
+const router = useRouter()
 const route = useRoute()
+
+// 页签管理器
+const { addTab } = useTabManager()
 
 // 响应式数据
 const isMobileMenuOpen = ref(false)
@@ -203,6 +219,27 @@ const toggleMobileMenu = () => {
 const closeMobileMenu = () => {
   isMobileMenuOpen.value = false
   document.body.style.overflow = 'auto'
+}
+
+// 处理导航点击事件
+const handleNavClick = (path: string, title: string, icon: string) => {
+  closeMobileMenu()
+  
+  // 创建模拟路由对象
+  const mockRoute = {
+    path,
+    name: title,
+    meta: {
+      title,
+      icon
+    }
+  }
+  
+  // 添加到页签管理器
+  addTab(mockRoute, { setActive: true })
+  
+  // 导航到对应路由
+  router.push(path)
 }
 
 // 监听网络状态
@@ -282,7 +319,7 @@ onUnmounted(() => {
 .mobile-menu-btn span {
   width: 100%;
   height: 3px;
-  background: #374151;
+  background: #667eea;
   border-radius: 2px;
   transition: all 0.3s ease;
   transform-origin: center;
@@ -302,14 +339,28 @@ onUnmounted(() => {
 
 /* 导航菜单 */
 .nav-menu {
-  background: white;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  border-radius: 0 0 16px 16px;
-  padding: 16px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+  border-radius: 0 0 24px 24px;
+  padding: 20px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 32px;
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-menu::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="80" cy="60" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="40" cy="90" r="1" fill="rgba(255,255,255,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+  opacity: 0.3;
+  pointer-events: none;
 }
 
 .nav-header {
@@ -321,14 +372,16 @@ onUnmounted(() => {
 .nav-logo {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  color: #1f2937;
-  font-size: 1.2rem;
+  gap: 12px;
+  font-weight: 700;
+  color: white;
+  font-size: 1.4rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .logo-icon {
-  font-size: 1.5rem;
+  font-size: 1.8rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 
 .mobile-close-btn {
@@ -361,27 +414,33 @@ onUnmounted(() => {
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 14px 20px;
   text-decoration: none;
-  color: #6b7280;
-  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 16px;
   transition: all 0.3s ease;
   font-weight: 500;
   position: relative;
   overflow: hidden;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .nav-link:hover {
-  color: #3b82f6;
-  background: #eff6ff;
-  transform: translateY(-2px);
+  color: white;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .nav-link.active {
-  color: #3b82f6;
-  background: #dbeafe;
+  color: white;
+  background: rgba(255, 255, 255, 0.25);
   font-weight: 600;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .nav-link.active::before {
@@ -390,33 +449,41 @@ onUnmounted(() => {
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 20px;
+  width: 30px;
   height: 3px;
-  background: #3b82f6;
+  background: linear-gradient(90deg, #ffffff, #f0f9ff);
   border-radius: 2px;
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.5);
 }
 
 .nav-icon {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 }
 
 .nav-text {
-  font-size: 0.95rem;
+  font-size: 1rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 /* PWA状态指示器 */
 .pwa-status {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
 }
 
 .status-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.875rem;
-  color: #6b7280;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
 }
 
 .status-icon {
@@ -452,27 +519,34 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .mobile-menu-btn {
     display: flex;
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1001;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    backdrop-filter: blur(10px);
   }
 
   .nav-menu {
     position: fixed;
     top: 0;
-    left: -100%;
-    width: 280px;
+    right: -100%;
+    width: 320px;
     height: 100vh;
     flex-direction: column;
     justify-content: flex-start;
     align-items: stretch;
     padding: 24px;
-    border-radius: 0;
-    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
-    transition: left 0.3s ease;
+    border-radius: 24px 0 0 24px;
+    box-shadow: -10px 0 30px rgba(102, 126, 234, 0.3);
+    transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     overflow-y: auto;
     z-index: 1000;
   }
 
   .nav-menu.open {
-    left: 0;
+    right: 0;
   }
 
   .nav-menu.open ~ .nav-overlay {
@@ -482,24 +556,30 @@ onUnmounted(() => {
   .nav-header {
     justify-content: space-between;
     margin-bottom: 32px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   }
 
   .mobile-close-btn {
     display: flex;
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
   }
 
   .nav-list {
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
     margin-bottom: 32px;
   }
 
   .nav-link {
-    padding: 16px 20px;
-    border-radius: 12px;
-    font-size: 1rem;
+    padding: 18px 24px;
+    border-radius: 16px;
+    font-size: 1.1rem;
+    justify-content: flex-start;
   }
 
   .nav-link.active::before {
@@ -507,27 +587,31 @@ onUnmounted(() => {
   }
 
   .nav-link.active {
-    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    background: rgba(255, 255, 255, 0.3);
     color: white;
+    box-shadow: 0 4px 20px rgba(255, 255, 255, 0.2);
   }
 
   .pwa-status {
     flex-direction: column;
     align-items: stretch;
-    gap: 12px;
-    padding-top: 16px;
-    border-top: 1px solid #e5e7eb;
+    gap: 16px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
   }
 
   .status-item {
     justify-content: center;
-    padding: 12px;
-    background: #f8fafc;
-    border-radius: 8px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    border-color: rgba(255, 255, 255, 0.3);
   }
 
   .nav-overlay {
     display: none;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
   }
 
   .nav-menu.open ~ .nav-overlay {

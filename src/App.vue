@@ -1,15 +1,30 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import Navigation from './components/Navigation.vue'
+import TabManager from './components/TabManager.vue'
 import PWAUpdatePrompt from './components/PWAUpdatePrompt.vue'
 import SmartInstallPrompt from './components/SmartInstallPrompt.vue'
 import OfflineManager from './components/OfflineManager.vue'
 import PerformanceMonitor from './components/PerformanceMonitor.vue'
 import OfflineSyncStatus from './components/OfflineSyncStatus.vue'
+import { useTabManager } from './composables/useTabManager'
+
+// 页签管理器
+const { initializeHomeTabs } = useTabManager()
 
 // 初始化应用
 onMounted(() => {
   console.log('Vue3 PWA应用已启动')
+  
+  // 初始化首页页签
+  initializeHomeTabs({
+    path: '/',
+    name: '首页',
+    meta: {
+      title: '首页',
+      icon: '🏠'
+    }
+  })
   
   // 注册Service Worker更新监听
   document.addEventListener('swUpdated', () => {
@@ -24,20 +39,14 @@ onMounted(() => {
     <!-- 导航栏 -->
     <Navigation />
     
+    <!-- 页签管理器 - 放在导航栏下方 -->
+    <TabManager />
+    
     <!-- PWA 增强组件 -->
     <SmartInstallPrompt />
     <OfflineManager />
     <PerformanceMonitor />
     <OfflineSyncStatus />
-    
-    <!-- 主要内容区域 -->
-    <main class="main-content">
-      <router-view v-slot="{ Component, route }">
-        <transition name="page" mode="out-in">
-          <component :is="Component" :key="route.path" />
-        </transition>
-      </router-view>
-    </main>
     
     <!-- PWA更新提示 -->
     <PWAUpdatePrompt />
@@ -66,7 +75,7 @@ onMounted(() => {
 
 .main-content {
   flex: 1;
-  padding-top: 20px;
+  padding-top: 0;
   min-height: calc(100vh - 120px);
 }
 
@@ -130,7 +139,7 @@ onMounted(() => {
 /* 响应式设计 */
 @media (max-width: 768px) {
   .main-content {
-    padding-top: 80px; /* 为移动端菜单按钮留出空间 */
+    padding-top: 0; /* 页签管理器已在顶部 */
   }
   
   .footer-content {

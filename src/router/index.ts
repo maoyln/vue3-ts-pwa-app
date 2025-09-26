@@ -19,6 +19,7 @@ const CommentsTable = () => import('../views/CommentsTable.vue')
 const AlbumsTable = () => import('../views/AlbumsTable.vue')
 const About = () => import('../views/About.vue')
 const ApiDemo = () => import('../views/ApiDemo.vue')
+const TabDemo = () => import('../views/TabDemo.vue')
 const PWADashboard = () => import('../components/EnhancedPWADashboard.vue')
 
 const routes: Array<RouteRecordRaw> = [
@@ -100,6 +101,16 @@ const routes: Array<RouteRecordRaw> = [
     component: ApiDemo,
     meta: {
       title: 'API演示',
+      keepAlive: true
+    }
+  },
+  {
+    path: '/tab-demo',
+    name: 'TabDemo',
+    component: TabDemo,
+    meta: {
+      title: '多页签演示',
+      icon: '🗂️',
       keepAlive: true
     }
   },
